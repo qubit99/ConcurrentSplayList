@@ -3,19 +3,48 @@ package SplayList;
 import static java.lang.Math.random;
 
 public class SplayList {
-    public Node head;
-    public Node tail;
-    public int zeroLevel = GlobalVariables.MAX_LEVEL-1;
-    public long accessCounter = 0;
+    private Node head;
+    private Node tail;
+    /**
+     * The base Level of the Splay List . This is maintained for the re-balancing/expansion of the Splay List
+     * This is basically the lowest level visited by any of the nodes in the Splay List.
+     */
+    private int zeroLevel = GlobalVariables.MAX_LEVEL-1;
+    /**
+     * This basically tells us the total number of hits of all the elements of the Splay List
+     */
+    private long accessCounter = 0;
+    /**
+     * The total number of hits of the logically deleted elements
+     */
+    private long deleted_hits = 0;
+    /**
+     * Number of elements currently logically present in the Splay List
+     */
+    private int size = 0;
 
-    //probability of updating/balancing the splayList
+    /**
+     * Probability of updating/balancing the splayList
+     */
     private static final double p = 0.5;
+
+    public int getZeroLevel(){
+        return zeroLevel;
+    }
+
+    public Node getHead(){
+        return head;
+    }
+
+    public int getSize(){
+        return size;
+    }
 
     /**
      * Update the zeroLevel and perform required actions
      * @param curr node to be updated
      */
-    public void updateZeroLevel(Node curr){
+    private void updateZeroLevel(Node curr){
         if(curr == null) return;
         // This function should be used only if we have lock on curr
         int currZeroLevel = zeroLevel;
@@ -31,7 +60,7 @@ public class SplayList {
      * @param curr node to be updated
      * @param level level up to which update is to be done
      */
-    public void updateUpToLevel(Node curr, int level){
+    private void updateUpToLevel(Node curr, int level){
         if(curr == null) return;
         // Lock the node and then proceed
         while(curr.zeroLevel > level){
@@ -67,7 +96,7 @@ public class SplayList {
      * @param h level at which hits are to be calculated or to be found
      * @return hits of node at level h
      */
-    public int getHits(Node node,int h){
+    private int getHits(Node node,int h){
         if(node.zeroLevel > h) return node.selfHits;
         return node.selfHits + node.hits.get(h);
     }
@@ -78,29 +107,29 @@ public class SplayList {
      * @param np node pairs consisting of predecessor and successor nodes which will be updated in this function
      * @return true if the SplayList has the provided value or false otherwise
      */
-    public boolean find(int value, NodePairs np){
-        Node succ = np.b;
-        Node pred = head;
+    private boolean find(int value, NodePairs np){
+        Node suc = np.b;
+        Node pre = head;
         for(int level = GlobalVariables.MAX_LEVEL-1; level >= zeroLevel ;level--) {
-            updateUpToLevel(pred, level);
+            updateUpToLevel(pre, level);
 
-            succ = pred.next.get(level);
+            suc = pre.next.get(level);
 
-            updateUpToLevel(succ, level);
+            updateUpToLevel(suc, level);
 
-            while (succ != null && value > succ.value) {
-                pred = succ;
-                succ = pred.next.get(level);
-                updateUpToLevel(succ, level);
+            while (suc != null && value > suc.value) {
+                pre = suc;
+                suc = pre.next.get(level);
+                updateUpToLevel(suc, level);
             }
-            if (succ != null && value == succ.value) {
-                np.a = pred;
-                np.b = succ;
+            if (suc != null && value == suc.value) {
+                np.a = pre;
+                np.b = suc;
                 return true;
             }
         }
-        np.a = pred;
-        np.b = succ;
+        np.a = pre;
+        np.b = suc;
         return false;
     }
 
@@ -108,24 +137,24 @@ public class SplayList {
      * Performs the re-balancing of the SplayList after an operation
      * @param val value associated with the operation
      */
-    public void update(int val){
+    private void update(int val){
         accessCounter++;
 
         int head_hits = head.hits.get(GlobalVariables.MAX_LEVEL);
         head.hits.set(GlobalVariables.MAX_LEVEL,head_hits+1);
 
-        Node pred = head;
+        Node pre = head;
 
         for(int h=GlobalVariables.MAX_LEVEL-1 ; h >= zeroLevel ; h--){
-            updateUpToLevel(pred,h);
+            updateUpToLevel(pre,h);
 
-            Node predpred = pred;
-            Node curr = pred.next.get(h);
+            Node predpred = pre;
+            Node curr = pre.next.get(h);
 
             updateUpToLevel(curr,h);
 
             if(curr.value > val){
-                pred.hits.set( h , pred.hits.get(h) + 1);
+                pre.hits.set( h , pre.hits.get(h) + 1);
                 continue;
             }
 
@@ -146,24 +175,24 @@ public class SplayList {
                 // Ascent Condition
                 if(h+1 < GlobalVariables.MAX_LEVEL && (h< predpred.topLevel) && predpred.next.get(h) == curr
                         && (predpred.hits.get(h+1) - predpred.hits.get(h)) > (accessCounter/(1 << (GlobalVariables.MAX_LEVEL - 2 - h)))){
-                    int curh = curr.topLevel;
-                    while(curh + 1 <GlobalVariables.MAX_LEVEL && (curh< predpred.topLevel) && predpred.next.get(h) == curr
-                            && (predpred.hits.get(curh+1) - predpred.hits.get(curh)) > (accessCounter/(1 << (GlobalVariables.MAX_LEVEL - 2 - curh)))){
+                    int current_height = curr.topLevel;
+                    while(current_height + 1 <GlobalVariables.MAX_LEVEL && (current_height< predpred.topLevel) && predpred.next.get(h) == curr
+                            && (predpred.hits.get(current_height+1) - predpred.hits.get(current_height)) > (accessCounter/(1 << (GlobalVariables.MAX_LEVEL - 2 - current_height)))){
                         curr.topLevel++;
-                        curh++;
-                        curr.hits.set(curh,predpred.hits.get(curh) - predpred.hits.get(curh-1) - curr.selfHits);
-                        curr.next.set(curh,predpred.next.get(curh));
-                        predpred.next.set(curh,curr);
-                        predpred.hits.set(curh,predpred.hits.get(curh-1));
+                        current_height++;
+                        curr.hits.set(current_height,predpred.hits.get(current_height) - predpred.hits.get(current_height-1) - curr.selfHits);
+                        curr.next.set(current_height,predpred.next.get(current_height));
+                        predpred.next.set(current_height,curr);
+                        predpred.hits.set(current_height,predpred.hits.get(current_height-1));
                     }
                     predpred = curr;
-                    pred = curr;
+                    pre = curr;
                     curr = curr.next.get(h);
                     continue;
                 }
                 // Descent Condition
                 else if(curr.topLevel == h && curr.next.get(h).value <= val
-                        && (getHits(curr,h) + getHits(pred,h) <= (accessCounter/(1 << (GlobalVariables.MAX_LEVEL-1-h))))){
+                        && (getHits(curr,h) + getHits(pre,h) <= (accessCounter/(1L << (GlobalVariables.MAX_LEVEL-1-h))))){
                     int currZeroLevel = zeroLevel;
                     if (h == currZeroLevel) {
                         zeroLevel = currZeroLevel - 1;
@@ -171,19 +200,19 @@ public class SplayList {
                     if(curr.zeroLevel > h-1){
                         updateZeroLevel(curr);
                     }
-                    if(pred.zeroLevel > h-1){
-                        updateZeroLevel(pred);
+                    if(pre.zeroLevel > h-1){
+                        updateZeroLevel(pre);
                     }
-                    pred.hits.set(h,pred.hits.get(h) + getHits(curr,h));
+                    pre.hits.set(h,pre.hits.get(h) + getHits(curr,h));
                     curr.hits.set(h,0);
-                    pred.next.set(h,curr.next.get(h));
+                    pre.next.set(h,curr.next.get(h));
                     curr.next.set(h,null);
                     curr.topLevel--;
-                    curr = pred.next.get(h);
+                    curr = pre.next.get(h);
                     continue;
                 }
-                pred = curr;
-                curr = pred.next.get(h);
+                pre = curr;
+                curr = pre.next.get(h);
             }
             if(ok){
                 return;
@@ -196,16 +225,16 @@ public class SplayList {
      * @param val value to be found
      * @return Node if found else null
      */
-    public Node contains(int val){
+    public boolean contains(int val){
 
         NodePairs np = new NodePairs(null,null);
         if(find(val,np)){
             if(random() < p){
                 update(val);
             }
-            return np.b;
+            return !np.b.deleted ;
         }
-        return null;
+        return false;
     }
 
     /**
@@ -219,14 +248,16 @@ public class SplayList {
                 // return as the value is already inserted
                 return;
             }
-            Node pred = np.a;
-            Node succ = np.b;
-            int currZeroLevel = pred.zeroLevel;
+            Node pre = np.a;
+            Node suc = np.b;
+            int currZeroLevel = pre.zeroLevel;
             Node newNode = createNode(val,currZeroLevel);
-            newNode.next.set(currZeroLevel,succ);
+            newNode.next.set(currZeroLevel,suc);
 
-            if(pred.next.get(currZeroLevel) == succ){
-                pred.next.set(currZeroLevel,newNode);
+            size++;
+
+            if(pre.next.get(currZeroLevel) == suc){
+                pre.next.set(currZeroLevel,newNode);
                 update(val);
                 return;
             }
@@ -241,18 +272,35 @@ public class SplayList {
         Node node = head;
         System.out.println("ZeroLevel of the List is level : "+zeroLevel+" and topLevel is level: "+ head.topLevel);
         while(node != null){
-            updateUpToLevel(node,zeroLevel);
+//            updateUpToLevel(node,zeroLevel);
             System.out.print(node.value + " : " + node.selfHits + " : ");
-            for(int i = node.zeroLevel; i <= node.topLevel ; ++i){
+            for(int i = zeroLevel; i <= node.topLevel ; ++i){
                 System.out.print(node.hits.get(i)+ " , ");
             }
             System.out.println();
-            node = node.next.get(zeroLevel);
+            node = node.next.get(node.zeroLevel);
         }
     }
 
-    // TODO
-    public void removeIfPresent(){
+    /**
+     * Removes the element of the provided value if present from the Splay List
+     * @param val value ot the element to be removed
+     */
+    public void removeIfPresent(int val){
+        NodePairs np = new NodePairs(null,null);
+        if(find(val,np)){
+            if(np.b.deleted) return;
+            if(random() < p){
+                update(val);
+            }
 
+            np.b.deleted = true;
+            size--;
+            deleted_hits += np.b.selfHits;
+
+            // ToDo : if total_deleted_hits >= (total_hits/2)
+            // Move all the logically present elements to a new Splay List
+            // ie, rebuild this splay List
+        }
     }
 }
